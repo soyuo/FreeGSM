@@ -4,8 +4,7 @@
 //! read an optional `config.yml`; that is out of scope here per the migration
 //! plan, which lists only the `FREEGSM_*` env vars.)
 //!
-//! Built once at startup into a global accessed via [`get`]. Read this module
-//! first to understand the WinDivert capture filter.
+//! Built once at startup into a global accessed via [`get`].
 
 use std::net::Ipv4Addr;
 use std::str::FromStr;
@@ -44,6 +43,7 @@ pub struct Config {
     #[allow(dead_code)]
     pub doh_server_ip: Option<Ipv4Addr>,
     pub dpi_bypass: bool,
+    #[cfg(windows)]
     pub divert_filter: String,
 }
 
@@ -67,13 +67,15 @@ impl Config {
             .unwrap_or_else(|| "https://1.0.0.1/dns-query".to_string());
 
         let doh_server_ip = literal_ipv4_host(&doh_url);
-        let dpi_bypass = env_flag("FREEGSM_DPI", true);
+        let dpi_bypass = cfg!(any(windows, target_os = "macos")) && env_flag("FREEGSM_DPI", true);
+        #[cfg(windows)]
         let divert_filter = build_filter(dpi_bypass, doh_server_ip);
 
         Config {
             doh_url,
             doh_server_ip,
             dpi_bypass,
+            #[cfg(windows)]
             divert_filter,
         }
     }
@@ -105,6 +107,7 @@ fn literal_ipv4_host(url: &str) -> Option<Ipv4Addr> {
 }
 
 /// Build the WinDivert filter string, byte-for-byte matching `config.py`.
+#[cfg(windows)]
 fn build_filter(dpi_bypass: bool, doh_ip: Option<Ipv4Addr>) -> String {
     // DNS clauses:
     //   1. outbound UDP/53  -> synthesized DoH responses
@@ -138,7 +141,7 @@ fn build_filter(dpi_bypass: bool, doh_ip: Option<Ipv4Addr>) -> String {
     filter
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 

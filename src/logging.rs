@@ -1,9 +1,9 @@
 //! Minimal logger reproducing the Python format
-//! `"%(asctime)s %(levelname)-7s %(name)s: %(message)s"` with `%H:%M:%S` local
-//! time. A hand-rolled `log::Log` keeps the binary small (no tracing stack).
+//! `"%(asctime)s %(levelname)-7s %(name)s: %(message)s"` with `%H:%M:%S`.
 
 use log::{Level, LevelFilter, Log, Metadata, Record};
 
+#[cfg(windows)]
 #[repr(C)]
 struct SystemTime {
     w_year: u16,
@@ -16,10 +16,12 @@ struct SystemTime {
     w_milliseconds: u16,
 }
 
+#[cfg(windows)]
 extern "system" {
     fn GetLocalTime(out: *mut SystemTime);
 }
 
+#[cfg(windows)]
 fn local_hms() -> (u16, u16, u16) {
     // SAFETY: GetLocalTime fills the provided SYSTEMTIME; no failure mode.
     let mut st = SystemTime {
@@ -34,6 +36,15 @@ fn local_hms() -> (u16, u16, u16) {
     };
     unsafe { GetLocalTime(&mut st) };
     (st.w_hour, st.w_minute, st.w_second)
+}
+
+#[cfg(not(windows))]
+fn local_hms() -> (u16, u16, u16) {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() % 86_400)
+        .unwrap_or(0);
+    ((secs / 3600) as u16, ((secs / 60) % 60) as u16, (secs % 60) as u16)
 }
 
 struct Logger;
