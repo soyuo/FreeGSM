@@ -12,7 +12,7 @@ FreeGSM은 소스코드가 상실된 FxxkGSM을 대체하고, DNS 차단과 SNI 
 ## 기본 지식
 
 평문 DNS를 **DNS-over-HTTPS(DoH)** 로 자동 전환하고, **SNI 기반 차단(DPI)** 까지
-우회하는 Windows용 프로그램입니다. 실행해 두면 동작하고, 끄면 원래대로 돌아옵니다. (IPv4 전용)
+우회하는 macOS 중심 프로그램입니다. 실행해 두면 동작하고, 끄면 원래대로 돌아옵니다. (IPv4 전용)
 VPN이 아니기 때문에 실질적으로 ip가 변경되거나 핑이 크게 튀지 않습니다.
 따라서 ip가 차단당한 경우엔 사용할 수 없습니다.
 
@@ -184,3 +184,23 @@ ClientHello 레코드를 **두 개의 유효한 TLS 레코드**로 다시 내보
 - **QUIC / HTTP-3(UDP/443)은 처리하지 않습니다.** 네트워크가 QUIC를 SNI로 막는다면
   브라우저에서 HTTP/3을 꺼서 TCP로 폴백시키세요(TCP는 우회됩니다).
 - SNI 차단 장비가 분할된 SNI 레코드를 조합한다면 차단을 우회할 수 없습니다. 이를 해결하기 위한 노력으로는 [ESNI](https://www.cloudflare.com/ko-kr/learning/ssl/what-is-encrypted-sni/)가 있습니다.
+## macOS support
+
+FreeGSM can run as a macOS-focused build. Because WinDivert is Windows-only,
+macOS uses temporary `pf` redirect rules:
+
+- TCP/UDP DNS `:53` is redirected to the built-in DoH proxy.
+- TCP `:443` is redirected to a local TLS relay that applies SNI fragmentation.
+- UDP `:443` is dropped so browsers fall back from QUIC/HTTP-3 to TCP.
+
+```bash
+python3 -m pip install -r requirements.txt
+sudo python3 -m dohproxy.main
+```
+
+Notes:
+
+- Root privileges are required because `pfctl` changes packet-filter rules.
+- The HTTPS relay uses `/dev/pf` `DIOCNATLOOK` to recover the original
+  destination before connecting upstream.
+- Press `Ctrl+C` to clear the temporary `pf` anchor and restore normal DNS.
